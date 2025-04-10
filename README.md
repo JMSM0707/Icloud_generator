@@ -66,4 +66,4 @@ Yoki shunchaki START.bat fayliga ikki marta bosing.
 
 **PPOCHTALARNI FAYLGA SAQLASH**
 
-Ish yakunlanganidan so'ng, dasturni qayta ishga tushurish orqali, `Mavjud pochtalar ro'yhatini olish` funksiyasi bilan icloud akkauntdagi barcha pochtalar ro'yhatini faylga saqlab olishingiz mumkin!
+Ish yakunlanganidan so'ng, dasturni qayta ishga tushurish orqali, `2. Mavjud pochtalar ro'yhatini olish` funksiyasi bilan Icloud akkauntdagi barcha pochtalar ro'yhatini faylga saqlab olishingiz mumkin!
