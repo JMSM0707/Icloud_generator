@@ -5,8 +5,6 @@
 
 _ICloud elektron pochta xabarlarini yaratish uchun siz faol iCloud+ obunasiga ega bo'lishingiz kerak..._
 
-<p align="center"><img src="docs/example.png"></p>
-
 ## Foydalanish
 
 Apple sizga har 1 soatda iCloud oilangizda 5 tadan iborat elektron pochta xabarlarini yaratishga imkon beradi. Mening tajribamga ko'ra, 1 ta akkaunt uchun jami siz yaratishingiz mumkin bo'lgan iCloud elektron pochta xabarlari miqdorini ~ 750 ga taga teng.
