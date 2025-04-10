@@ -34,20 +34,20 @@ Yoki shunchaki START.bat fayliga ikki marta bosing.
 4. Endi skriptni quyidagi bilan ishga tushirishingiz mumkin:
 
 
-**on Mac:**
+**Mac uchun:**
 
 ```bash
 python3 main.py
 ```
 
-**on Windows:**
+**Windows uchun:**
 
 ```bash
 python main.py
 ```
 Yoki shunchaki START.bat fayliga ikki marta bosing.
 
-## iCloud cookie fayli olish
+## iCloud cookieni olish va faylga joylash:
 
 > Kerakli cookie-fayllarni olishning bir nechta usullari mavjud, ammo bu eng oddiy usul:
 
