@@ -209,8 +209,8 @@ async def main():
     async with RichHideMyEmail() as hme:
         while True:
             console.print("\n[bold]Asosiy menyu:[/]")
-            console.print("1. Yangi email generatsiya qilish")
-            console.print("2. Mavjud emaillarni ro'yhatini ko'rsatish")
+            console.print("1. Yangi pochta generatsiya qilish")
+            console.print("2. Mavjud pochtalar ro'yhatini olish")
             console.print("3. Chiqish")
             
             choice = IntPrompt.ask("Tanlovni kiriting", choices=["1", "2", "3"], default=3)
