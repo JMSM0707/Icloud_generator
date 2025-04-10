@@ -1,7 +1,7 @@
 # Icloud_generator
 <p align="center"><img width=60% src="docs/header.png"></p>
 
-> HideMyEmail orqali Apple iCloud elektron pochta xabarlarini avtomatik yaratish.
+HideMyEmail orqali Apple iCloud elektron pochta xabarlarini avtomatik yaratish.
 
 _ICloud elektron pochta xabarlarini yaratish uchun siz faol iCloud+ obunasiga ega bo'lishingiz kerak..._
 
