@@ -25,9 +25,9 @@ pip install -r requirements.txt
 ```
 Yoki shunchaki START.bat fayliga ikki marta bosing.
 
-3. [Save your cookie string](https://github.com/rtunazzz/hidemyemail-generator#getting-icloud-cookie-string)
+3. [Cookie faylingizni saqlang]
 
-   > Buni faqat bir marta qilishingiz kerak 🙂
+   Buni faqat bir marta qilishingiz kerak 🙂
 
 4. Endi skriptni quyidagi bilan ishga tushirishingiz mumkin:
 
