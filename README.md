@@ -52,14 +52,18 @@ Yoki shunchaki START.bat fayliga ikki marta bosing.
 1. Chrome kengaytmasini yuklab oling [EditThisCookie](https://chromewebstore.google.com/detail/editthiscookie-v3/ojfebgpkimhlhcblbalbfjblapadhbol)
 
 2. Kengaytmaga o'ting va kerakli eksport formatini o'rnating `Semicolon separated name=value pairs`
-3. [EditThisCookie settings page](chrome-extension://fngmhnnpilhplaeedifhccceomclgfbg/options_pages/user_preferences.html)  `Semicolon separated name=value pairs`
+3. [EditThisCookie settings page](chrome-extension://fngmhnnpilhplaeedifhccceomclgfbg/options_pages/user_preferences.html)
 
 <p align="center"><img src="docs/cookie-settings.png" width=70%></p>
 
 3. Brauzeringizda [iCloud sozlamalari](https://www.icloud.com/settings/) ga o'ting va tizimga kiring.
 
-4. EditThisCookie kengaytmasini bosing va cookie-fayllarni eksport qiling
+4. EditThisCookie kengaytmasini bosing va cookie-fayllarni eksport qiling.
 
 <p align="center"><img src="docs/export-cookies.png" width=70%></p>
 
-5. Eksport qilingan cookie-fayllarni `cookie.txt` nomli faylga joylashtiring
+5. Eksport qilingan cookie-fayllarni `cookie.txt` nomli faylga joylashtiring.
+
+**PPOCHTALARNI FAYLGA SAQLASH**
+
+Ish yakunlanganidan so'ng, dasturni qayta ishga tushurish orqali, `Mavjud pochtalar ro'yhatini olish` funksiyasi bilan icloud akkauntdagi barcha pochtalar ro'yhatini faylga saqlab olishingiz mumkin!
