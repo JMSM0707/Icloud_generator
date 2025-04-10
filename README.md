@@ -25,7 +25,7 @@ git clone https://github.com/JMSM0707/Icloud_generator.git
 ```bash
 pip install -r requirements.txt
 ```
-Yoki shunchaki START.bat fayliga ikki marta bosing
+Yoki shunchaki START.bat fayliga ikki marta bosing.
 
 3. [Save your cookie string](https://github.com/rtunazzz/hidemyemail-generator#getting-icloud-cookie-string)
 
@@ -45,7 +45,7 @@ python3 main.py
 ```bash
 python main.py
 ```
-Yoki shunchaki START.bat fayliga ikki marta bosing
+Yoki shunchaki START.bat fayliga ikki marta bosing.
 
 ## iCloud cookie fayli olish
 
