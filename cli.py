@@ -2,18 +2,31 @@
 
 import asyncio
 import click
+import logging
+from typing import Optional
 from main import RichHideMyEmail
+
+# Log konfiguratsiyasi
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('hide_my_email.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 @click.group()
 def cli():
     """iCloud Hide My Email Manager with Scheduled Generation"""
     pass
 
-async def _generate(total: int, batch_size: int, delay: float):
+async def _generate(total: int, batch_size: int, delay: float, max_retries: int):
     async with RichHideMyEmail() as hme:
-        await hme.generate_with_schedule(total, batch_size, delay)
+        await hme.generate_with_schedule(total, batch_size, delay, max_retries)
 
-async def _list(active, search):
+async def _list(active: bool, search: Optional[str]):
     async with RichHideMyEmail() as hme:
         await hme.list_emails(active=active, search=search)
 
@@ -21,26 +34,37 @@ async def _list(active, search):
 @click.option("--total", default=5, help="Total number of emails to generate", type=int)
 @click.option("--batch-size", default=5, help="Number of emails per batch", type=int)
 @click.option("--delay", default=1, help="Delay between batches in hours", type=float)
-def generate(total: int, batch_size: int, delay: float):
+@click.option("--max-retries", default=3, help="Max retries for failed operations", type=int)
+def generate(total: int, batch_size: int, delay: float, max_retries: int):
     """Generate emails in scheduled batches"""
+    logger.info(f"Starting email generation: total={total}, batch_size={batch_size}, delay={delay} hours")
     loop = asyncio.new_event_loop()
     try:
-        loop.run_until_complete(_generate(total, batch_size, delay))
+        loop.run_until_complete(_generate(total, batch_size, delay, max_retries))
     except KeyboardInterrupt:
+        logger.warning("Generation interrupted by user")
         print("\nGeneration interrupted by user")
+    except Exception as e:
+        logger.error(f"Generation failed: {str(e)}")
+        print(f"\nError: {str(e)}")
     finally:
         loop.close()
 
 @click.command()
 @click.option("--active/--inactive", default=True, help="Filter Active/Inactive emails")
 @click.option("--search", default=None, help="Search emails by label")
-def list(active, search):
+def list(active: bool, search: Optional[str]):
     """List existing emails"""
+    logger.info(f"Listing emails: active={active}, search={search}")
     loop = asyncio.new_event_loop()
     try:
         loop.run_until_complete(_list(active, search))
     except KeyboardInterrupt:
+        logger.warning("Listing interrupted by user")
         print("\nListing interrupted by user")
+    except Exception as e:
+        logger.error(f"Listing failed: {str(e)}")
+        print(f"\nError: {str(e)}")
     finally:
         loop.close()
 
