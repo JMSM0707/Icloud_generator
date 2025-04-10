@@ -25,7 +25,7 @@ pip install -r requirements.txt
 ```
 Yoki shunchaki START.bat fayliga ikki marta bosing.
 
-3. [Cookie faylingizni saqlang](https://github.com/JMSM0707/Icloud_generator/blob/master/README.md#icloud-cookieni-olish-va-faylga-joylash)
+3. [Cookie faylingizni saqlash](https://github.com/JMSM0707/Icloud_generator/blob/master/README.md#icloud-cookieni-olish-va-faylga-joylash)
 
    Buni faqat bir marta qilishingiz kerak 🙂
 
