@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import datetime
 import os
 from typing import Union, List, Optional, Dict, Any
@@ -14,8 +14,9 @@ from icloud import HideMyEmail
 
 
 # Global constants
-MAX_CONCURRENT_TASKS = 5  # Har bir partiya uchun standart elektron pochta soni
-DELAY_HOURS = 1  # Har bir partiya uchun standart oraliq kutish vaqti
+MAX_CONCURRENT_TASKS = 5  # Har bir partiya uchun standart email soni
+DELAY_HOURS = 1  # Har bir partiya orasidagi kutish vaqti (soat)
+TIME_BETWEEN_ACCOUNTS = 5  # Har bir email generatsiyasi orasidagi kutish vaqti (soniya)
 
 
 class RichHideMyEmail(HideMyEmail):
@@ -66,12 +67,13 @@ class RichHideMyEmail(HideMyEmail):
 
     async def _generate_batch(self, batch_size: int) -> List[str]:
         emails = []
+        successful = 0
         for _ in range(batch_size):
             email = await self._generate_one()
             if email:
                 emails.append(email)
-            # Har bir emaildan keyin 3 soniya kutish
-            await asyncio.sleep(3)
+                successful += 1
+            await asyncio.sleep(TIME_BETWEEN_ACCOUNTS)
         return emails
 
     async def _save_emails_to_file(self, emails: List[str]) -> bool:
