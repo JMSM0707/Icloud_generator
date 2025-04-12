@@ -6,6 +6,7 @@ import logging
 import pytz
 from typing import Union, List, Optional, Dict, Any
 from pathlib import Path
+import threading
 
 from rich.text import Text
 from rich.prompt import IntPrompt, Confirm
@@ -24,6 +25,9 @@ DELAY_HOURS = 1           # Partiyalar orasidagi kutish vaqti (soatlarda)
 TIME_BETWEEN_ACCOUNTS = 5 # Har bir email generatsiyasi orasidagi kutish vaqti (soniyalarda)
 MAX_RETRIES = 1           # Xatolik yuz berganda qayta urinishlar soni
 RETRY_DELAY = 2           # Qayta urinishlar orasidagi kutish vaqti (soniyalarda)
+
+# Global lock - terminalga bir vaqtning o'zida yozish uchun
+print_lock = threading.Lock()
 
 class MoscowTimeColumn(ProgressColumn):
     """Hozirgi Moskva vaqtini ko'rsatish uchun maxsus ustun"""
@@ -46,13 +50,17 @@ class RichHideMyEmail(HideMyEmail):
         self._setup_directories()
         self._load_cookies()
 
+    def _print_safe(self, *args, **kwargs):
+        """Xavfsiz chop etish - bir vaqtning o'zida terminalga yozish uchun"""
+        with print_lock:
+            self.console.print(*args, **kwargs)
+
     def _setup_directories(self):
         try:
             Path(self._backup_dir).mkdir(exist_ok=True)
             logger.info("Papkalar muvaffaqiyatli yaratildi/yangilandi")
         except Exception as e:
-            logger.error(f"Papkalarni yaratishda xato: {str(e)}")
-            self.console.print(f"[red]✗ Xato:[/] Papkalarni yaratishda xato: {str(e)}")
+            self._print_safe(f"[red] ✗ Xato:[/] Papkalarni yaratishda xato: {str(e)}")
 
     def _load_cookies(self):
         try:
@@ -63,14 +71,11 @@ class RichHideMyEmail(HideMyEmail):
                         self.cookies = cookies[0]
                         logger.info("Cookie fayli muvaffaqiyatli yuklandi")
                     else:
-                        logger.warning("Cookie fayli bo'sh")
-                        self.console.print('[bold yellow][!][/] "cookie.txt" fayli bo\'sh! Avtorizatsiyasiz kirish mumkin emas.')
+                        self._print_safe('[bold yellow][!][/] "cookie.txt" fayli bo\'sh! Avtorizatsiyasiz kirish mumkin emas.')
             else:
-                logger.warning("Cookie fayli topilmadi")
-                self.console.print('[bold yellow][!][/] "cookie.txt" fayli topilmadi! Iltimos, avtorizatsiya qiling.')
+                self._print_safe('[bold yellow][!][/] "cookie.txt" fayli topilmadi! Iltimos, avtorizatsiya qiling.')
         except Exception as e:
-            logger.error(f"Cookie faylini o'qishda xato: {str(e)}")
-            self.console.print(f'[red]✗ Xato:[/] "cookie.txt" faylini o\'qishda xato: {str(e)}')
+            self._print_safe(f'[red] ✗ Xato:[/] "cookie.txt" faylini o\'qishda xato: {str(e)}')
 
     async def _generate_one(self, retry_count: int = 0) -> Union[str, None]:
         try:
@@ -79,8 +84,7 @@ class RichHideMyEmail(HideMyEmail):
             if not gen_res or "success" not in gen_res or not gen_res["success"]:
                 error = gen_res.get("error", {})
                 err_msg = error.get("errorMessage", gen_res.get("reason", "Noma'lum xato"))
-                logger.warning(f"Generatsiya muvaffaqiyatsiz: {err_msg}")
-                self.console.print(f"[red]✗ Xato:[/] Generatsiya muvaffaqiyatsiz. Sabab: {err_msg}")
+                self._print_safe(f"[red] ✗ Xato:[/] Generatsiya muvaffaqiyatsiz. Sabab: {err_msg}")
                 
                 if retry_count < MAX_RETRIES:
                     logger.info(f"Qayta urinish ({retry_count + 1}/{MAX_RETRIES})")
@@ -89,16 +93,14 @@ class RichHideMyEmail(HideMyEmail):
                 return None
 
             email = gen_res["result"]["hme"]
-            logger.info(f"Email generatsiya qilindi: {email}")
-            self.console.print(f"[green]✓[/] [yellow]Generatsiya:[/] {email}")
+            self._print_safe(f"[green] ✓[/] [green] Muvaffaqiyatli generatsiya qilindi:[/] {email}")
 
             reserve_res = await self.reserve_email(email)
             
             if not reserve_res or "success" not in reserve_res or not reserve_res["success"]:
                 error = reserve_res.get("error", {})
                 err_msg = error.get("errorMessage", reserve_res.get("reason", "Noma'lum xato"))
-                logger.warning(f"Rezervatsiya muvaffaqiyatsiz ({email}): {err_msg}")
-                self.console.print(f"[red]✗ Xato:[/] {email} - Rezervatsiya muvaffaqiyatsiz. Sabab: {err_msg}")
+                self._print_safe(f"[red] ✗ Xato:[/] {email} - Rezervatsiya muvaffaqiyatsiz. Sabab: {err_msg}")
                 
                 if retry_count < MAX_RETRIES:
                     logger.info(f"Qayta urinish ({retry_count + 1}/{MAX_RETRIES})")
@@ -106,13 +108,11 @@ class RichHideMyEmail(HideMyEmail):
                     return await self._generate_one(retry_count + 1)
                 return None
 
-            logger.info(f"Email muvaffaqiyatli rezervatsiya qilindi: {email}")
-            self.console.print(f"[green]✓✓[/] [blue]Rezervatsiya:[/] {email}")
+            self._print_safe(f"[green] ✓✓[/] [green] Muvaffaqiyatli rezervatsiya qilindi:[/] {email}")
             return email
             
         except Exception as e:
-            logger.error(f"Generatsiya jarayonida xato: {str(e)}", exc_info=True)
-            self.console.print(f"[red]✗ Kritik xato:[/] {str(e)}")
+            self._print_safe(f"[red] ✗ Generatsiya jarayonida xato:[/] {str(e)}")
             
             if retry_count < MAX_RETRIES:
                 logger.info(f"Qayta urinish ({retry_count + 1}/{MAX_RETRIES})")
@@ -132,8 +132,7 @@ class RichHideMyEmail(HideMyEmail):
 
     async def _save_emails_to_file(self, emails: List[str]) -> bool:
         if not emails:
-            logger.warning("Saqlash uchun email manzillari yo'q")
-            self.console.print("[yellow][!] Hech qanday email saqlanmadi[/]")
+            self._print_safe("[yellow][!] Hech qanday email saqlanmadi[/]")
             return False
         
         try:
@@ -147,15 +146,14 @@ class RichHideMyEmail(HideMyEmail):
                 f.write("\n".join(emails))
             
             logger.info(f"{len(emails)} ta email saqlandi: {self._generated_emails_file}")
-            self.console.print(
-                f'[green]✓[/] [bold]Muvaffaqiyatli![/] {len(emails)} ta email '
+            self._print_safe(
+                f'[green] ✓[/] [bold]Muvaffaqiyatli![/] {len(emails)} ta email '
                 f'"{self._generated_emails_file}" fayliga saqlandi'
             )
             return True
             
         except Exception as e:
-            logger.error(f"Faylga yozishda xato: {str(e)}", exc_info=True)
-            self.console.print(f'[red]✗ Faylga yozishda xato: {str(e)}[/]')
+            self._print_safe(f'[red] ✗ Faylga yozishda xato: {str(e)}[/]')
             return False
 
     async def generate_with_schedule(
@@ -173,8 +171,6 @@ class RichHideMyEmail(HideMyEmail):
         
         with Progress(
             "[progress.description]{task.description}",
-            "[progress.percentage]{task.percentage:>3.0f}%",
-            "•",
             MoscowTimeColumn(),
             transient=False
         ) as progress:
@@ -183,7 +179,7 @@ class RichHideMyEmail(HideMyEmail):
             while remaining > 0:
                 current_batch = min(batch_size, remaining)
                 logger.info(f"Partiya ishlayapti: {current_batch} ta email (qolgan: {remaining})")
-                self.console.print(f"\n[bold]Partiya:[/] {current_batch} ta email generatsiya qilinmoqda...")
+                self._print_safe(f"\n[bold]Partiya:[/] {current_batch} ta email generatsiya qilinmoqda...")
                 
                 batch = await self._generate_batch(current_batch, progress, task)
                 emails.extend(batch)
@@ -191,14 +187,13 @@ class RichHideMyEmail(HideMyEmail):
                 
                 if remaining > 0:
                     logger.info(f"Keyingi partiyadan oldin {delay} soat kutish...")
-                    self.console.print(f"\n[bold yellow]Kutish:[/] Keyingi partiyadan oldin {delay} soat kutish...")
+                    self._print_safe(f"\n[bold yellow]Kutish:[/] Keyingi partiyadan oldin {delay} soat kutish...")
                     await asyncio.sleep(delay * 3600)
 
         if emails:
             await self._save_emails_to_file(emails)
         else:
-            logger.warning("Hech qanday email generatsiya qilinmadi")
-            self.console.print("\n[bold yellow]Ogohlantirish:[/] Hech qanday email generatsiya qilinmadi")
+            self._print_safe("\n[bold yellow]Ogohlantirish:[/] Hech qanday email generatsiya qilinmadi")
 
         return emails
 
@@ -213,15 +208,13 @@ class RichHideMyEmail(HideMyEmail):
             
             gen_res = await self.list_email()
             if not gen_res:
-                logger.error("Serverdan javob kelmadi")
-                self.console.print("[red]✗ Serverdan javob kelmadi[/]")
+                self._print_safe("[red] ✗ Serverdan javob kelmadi[/]")
                 return []
 
             if "success" not in gen_res or not gen_res["success"]:
                 error = gen_res.get("error", {})
                 err_msg = error.get("errorMessage", gen_res.get("reason", "Noma'lum xato"))
-                logger.error(f"Email ro'yxatini olish muvaffaqiyatsiz: {err_msg}")
-                self.console.print(f"[red]✗ Email ro'yxatini olish muvaffaqiyatsiz: {err_msg}[/]")
+                self._print_safe(f"[red] ✗ Email ro'yxatini olish muvaffaqiyatsiz: {err_msg}[/]")
                 return []
 
             table = Table(title="Yashirin Email Manzillari", show_header=True, header_style="bold magenta")
@@ -260,7 +253,7 @@ class RichHideMyEmail(HideMyEmail):
                         "status": status
                     })
 
-            self.console.print(table)
+            self._print_safe(table)
             logger.info(f"{len(emails_data)} ta email ko'rsatildi")
 
             if save_to_file and emails_data:
@@ -273,19 +266,17 @@ class RichHideMyEmail(HideMyEmail):
                             f.write(f"{item['number']},{item['label']},{item['email']},{item['created']},{item['status']}\n")
                     
                     logger.info(f"Email ro'yxati faylga saqlandi: {filename}")
-                    self.console.print(
-                        f'[green]✓[/] [bold]Muvaffaqiyatli![/] {len(emails_data)} ta email '
+                    self._print_safe(
+                        f'[green] ✓[/] [bold]Muvaffaqiyatli![/] {len(emails_data)} ta email '
                         f'"{filename}" fayliga saqlandi'
                     )
                 except Exception as e:
-                    logger.error(f"Faylga saqlashda xato: {str(e)}", exc_info=True)
-                    self.console.print(f"[red]✗ Faylga saqlashda xato: {str(e)}[/]")
+                    self._print_safe(f"[red] ✗ Faylga saqlashda xato: {str(e)}[/]")
 
             return emails_data
 
         except Exception as e:
-            logger.error(f"Email ro'yxatini ko'rsatishda xato: {str(e)}", exc_info=True)
-            self.console.print(f"[red]✗ Email ro'yxatini ko'rsatishda xato: {str(e)}[/]")
+            self._print_safe(f"[red] ✗ Email ro'yxatini ko'rsatishda xato: {str(e)}[/]")
             return []
 
 async def main():
@@ -345,4 +336,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n[red]Dastur foydalanuvchi tomonidan to'xtatildi[/]")
     except Exception as e:
-        print(f"\n[red]✗ Kritik xato: {str(e)}[/]")
+        print(f"\n[red] ✗ Kritik xato: {str(e)}[/]")
