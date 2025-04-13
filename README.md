@@ -7,7 +7,7 @@ _ICloud elektron pochta xabarlarini yaratish uchun siz faol iCloud+ obunasiga eg
 
 ## Foydalanish
 
-Apple sizga har 1 soatda iCloud oilangizda 5 tadan iborat elektron pochta xabarlarini yaratishga imkon beradi. Mening tajribamga ko'ra, 1 ta akkaunt uchun jami siz yaratishingiz mumkin bo'lgan iCloud elektron pochta xabarlari miqdorini ~ 750 ga taga teng.
+Apple sizga har 1 soatda iCloud oilangizda 5 tadan iborat elektron pochta xabarlarini yaratishga imkon beradi. Mening tajribamga ko'ra, 1 ta akkaunt uchun jami siz yaratishingiz mumkin bo'lgan iCloud elektron pochtalari miqdorini ~ 750 ga taga teng.
 
 ## Sozlash; o'rnatish
 > Python 3.12+ talab qilinadi!
