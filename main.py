@@ -149,9 +149,10 @@ class RichHideMyEmail(HideMyEmail):
         
         with Progress(
             "[progress.description]{task.description}",
+            "[progress.percentage]",
             transient=False
         ) as progress:
-            task = progress.add_task("[bold cyan]", total=total_count)
+            task = progress.add_task("[cyan]============Yuklanmoqda============", total=total_count)
             
             while remaining > 0:
                 current_batch = min(batch_size, remaining)
@@ -239,9 +240,9 @@ class RichHideMyEmail(HideMyEmail):
                 filename = f"existing_emails_{timestamp}.csv"
                 try:
                     with open(filename, "w", encoding="utf-8") as f:
-                        f.write("№,Yorliq,Email,Yaratilgan sana,Holat\n")
+                        f.write("№|Yorliq|Pochta|Yaratilgan sana|Holat\n")
                         for item in emails_data:
-                            f.write(f"{item['number']},{item['label']},{item['email']},{item['created']},{item['status']}\n")
+                            f.write(f"{item['number']}|{item['label']}|{item['email']}|{item['created']}|{item['status']}\n")
                     self._print_with_timestamp(f'[green]✓ {filename} fayliga saqlandi')
                 except Exception as e:
                     self._print_with_timestamp(f"[red]✗ Xato:[/] {str(e)}")
