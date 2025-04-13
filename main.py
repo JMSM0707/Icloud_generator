@@ -178,7 +178,7 @@ class RichHideMyEmail(HideMyEmail):
                         hours, minutes, seconds = self.time_helper.format_seconds(delay_seconds)
                         progress.update(
                             task,
-                            description=f"[bold cyan][Keyingi partiya uchun kutish:[/] [bold white]{hours:02d}:{minutes:02d}:{seconds:02d}[/] [bold cyan]... ][/]"
+                            description=f"[bold cyan][Keyingi partiya uchun kutish:[/] [bold yellow]{hours:02d}:{minutes:02d}:{seconds:02d}[/] [bold cyan]... ][/]"
                         )
                         await asyncio.sleep(1)
                         delay_seconds -= 1
