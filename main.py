@@ -1,122 +1,114 @@
 import asyncio
-import datetime
-import os
 import re
-import logging
-import pytz
-from typing import Union, List, Optional, Dict, Any
-from pathlib import Path
 import threading
+from datetime import datetime
+from typing import List, Dict, Any, Optional, Union
+from pathlib import Path
 
-from rich.text import Text
-from rich.prompt import IntPrompt, Confirm
 from rich.console import Console
 from rich.table import Table
-from rich.progress import Progress, ProgressColumn
+from rich.progress import Progress, BarColumn, TimeRemainingColumn
+from rich.prompt import IntPrompt, Confirm
 
 from icloud import HideMyEmail
-
-# Jurnal yozish sozlamalari
-logger = logging.getLogger(__name__)
-
-# Global konstantalar
-MAX_CONCURRENT_TASKS = 5  # Bir vaqtda generatsiya qilinadigan maksimal email soni
-DELAY_HOURS = 1           # Partiyalar orasidagi kutish vaqti (soatlarda)
-TIME_BETWEEN_ACCOUNTS = 5 # Har bir email generatsiyasi orasidagi kutish vaqti (soniyalarda)
-MAX_RETRIES = 1           # Xatolik yuz berganda qayta urinishlar soni
-RETRY_DELAY = 2           # Qayta urinishlar orasidagi kutish vaqti (soniyalarda)
-
-# Global lock - terminalga bir vaqtning o'zida yozish uchun
-print_lock = threading.Lock()
-
-class MoscowTimeColumn(ProgressColumn):
-    """Hozirgi Moskva vaqtini ko'rsatish uchun maxsus ustun"""
-    def __init__(self):
-        super().__init__()
-        self.tz = pytz.timezone('Europe/Moscow')
-    
-    def render(self, task):
-        return datetime.datetime.now(self.tz).strftime("%H:%M:%S")
+from utils.logger import logger
+from utils.helpers import TimeHelper
+from config.settings import config
 
 class RichHideMyEmail(HideMyEmail):
-    _cookie_file = "cookie.txt"
-    _generated_emails_file = "generated_emails.txt"
-    _backup_dir = "backups"
-
     def __init__(self):
         super().__init__()
         self.console = Console()
-        self.table = Table()
-        self._setup_directories()
+        self.time_helper = TimeHelper()
+        self.print_lock = threading.Lock()
         self._load_cookies()
+        self._setup_directories()
 
-    def _print_safe(self, *args, **kwargs):
-        """Xavfsiz chop etish - bir vaqtning o'zida terminalga yozish uchun"""
-        with print_lock:
-            self.console.print(*args, **kwargs)
+    def _get_current_time(self) -> str:
+        """Hozirgi vaqtni formatlangan holda qaytaradi"""
+        return datetime.now().strftime("%m/%d/%y %H:%M:%S MSK")
+
+    def _print_with_timestamp(self, *args, **kwargs):
+        """Vaqt logosi bilan chiqarish"""
+        timestamp = f"[  {self._get_current_time()}  ] [bold white]|[/]"
+        with self.print_lock:
+            self.console.print(f"[bold cyan]{timestamp}[/]", *args, **kwargs)
 
     def _setup_directories(self):
         try:
-            Path(self._backup_dir).mkdir(exist_ok=True)
-            logger.info("Papkalar muvaffaqiyatli yaratildi/yangilandi")
+            backup_dir = Path(config.get("DEFAULT", "backup_dir"))
+            backup_dir.mkdir(exist_ok=True)
+            self._print_with_timestamp("[green]✓[/] Backups papkasi yaratildi")
         except Exception as e:
-            self._print_safe(f"[red] ✗ Xato:[/] Papkalarni yaratishda xato: {str(e)}")
+            self._print_with_timestamp(f"[red]✗ Xato:[/] {str(e)}")
 
     def _load_cookies(self):
+        cookie_file = Path(config.get("DEFAULT", "cookie_file"))
         try:
-            if os.path.exists(self._cookie_file):
-                with open(self._cookie_file, "r", encoding="utf-8") as f:
-                    cookies = [line.strip() for line in f if line.strip() and not line.startswith("//")]
+            if cookie_file.exists():
+                with open(cookie_file, "r", encoding="utf-8") as f:
+                    cookies = [line.strip() for line in f if line.strip()]
                     if cookies:
                         self.cookies = cookies[0]
-                        logger.info("Cookie fayli muvaffaqiyatli yuklandi")
+                        self._print_with_timestamp("[green]✓[/] Cookie faylidan ma'lumotlar yuklandi")
                     else:
-                        self._print_safe('[bold yellow][!][/] "cookie.txt" fayli bo\'sh! Avtorizatsiyasiz kirish mumkin emas.')
+                        self._print_with_timestamp('[yellow][!] Cookie fayli bo\'sh')
             else:
-                self._print_safe('[bold yellow][!][/] "cookie.txt" fayli topilmadi! Iltimos, avtorizatsiya qiling.')
+                self._print_with_timestamp('[yellow][!] Cookie fayli topilmadi')
         except Exception as e:
-            self._print_safe(f'[red] ✗ Xato:[/] "cookie.txt" faylini o\'qishda xato: {str(e)}')
+            self._print_with_timestamp(f'[red]✗ Xato:[/] {str(e)}')
 
     async def _generate_one(self, retry_count: int = 0) -> Union[str, None]:
+        """Bitta email generatsiya qilish va zaxiralash"""
         try:
+            # Email generatsiya qilish
             gen_res = await self.generate_email()
             
-            if not gen_res or "success" not in gen_res or not gen_res["success"]:
-                error = gen_res.get("error", {})
-                err_msg = error.get("errorMessage", gen_res.get("reason", "Noma'lum xato"))
-                self._print_safe(f"[red] ✗ Xato:[/] Generatsiya muvaffaqiyatsiz. Sabab: {err_msg}")
+            # Server javobini tekshirish
+            if not gen_res or not gen_res.get("success"):
+                error = gen_res.get("error", {}) if gen_res else {}
+                err_msg = error.get("errorMessage", "Noma'lum xato")
                 
-                if retry_count < MAX_RETRIES:
-                    logger.info(f"Qayta urinish ({retry_count + 1}/{MAX_RETRIES})")
-                    await asyncio.sleep(RETRY_DELAY)
+                # Limit xatosini aniqlash
+                if any(keyword in err_msg.lower() for keyword in ["limit", "maximum", "5 per hour", "too many"]):
+                    self._print_with_timestamp("[yellow]⚠️ Ogohlantirish:[/] 5 talik limitga yetdingiz [bold cyan](kuting ...)[/]")
+                    return None
+                
+                self._print_with_timestamp(f"[red]✗ Xato:[/] {err_msg}")
+                if retry_count < config.getint("DEFAULT", "max_retries"):
+                    await asyncio.sleep(config.getint("DEFAULT", "retry_delay"))
                     return await self._generate_one(retry_count + 1)
                 return None
 
             email = gen_res["result"]["hme"]
-            self._print_safe(f"[green] ✓[/] [green] Muvaffaqiyatli generatsiya qilindi:[/] {email}")
+            self._print_with_timestamp(f"[bold green]✓[/] [bold blue]Pochta generatsiya qilindi:[/] {email}")
 
+            # Emailni zaxiralash
             reserve_res = await self.reserve_email(email)
             
-            if not reserve_res or "success" not in reserve_res or not reserve_res["success"]:
-                error = reserve_res.get("error", {})
-                err_msg = error.get("errorMessage", reserve_res.get("reason", "Noma'lum xato"))
-                self._print_safe(f"[red] ✗ Xato:[/] {email} - Rezervatsiya muvaffaqiyatsiz. Sabab: {err_msg}")
+            # Zaxiralash javobini tekshirish
+            if not reserve_res or not reserve_res.get("success"):
+                error = reserve_res.get("error", {}) if reserve_res else {}
+                err_msg = error.get("errorMessage", "Noma'lum xato")
                 
-                if retry_count < MAX_RETRIES:
-                    logger.info(f"Qayta urinish ({retry_count + 1}/{MAX_RETRIES})")
-                    await asyncio.sleep(RETRY_DELAY)
+                # Limit xatosini aniqlash
+                if any(keyword in err_msg.lower() for keyword in ["limit", "maximum", "5 per hour", "too many"]):
+                    self._print_with_timestamp("[yellow]⚠️ Ogohlantirish:[/] 5 talik limitga yetdingiz [bold cyan](kuting ...)[/]")
+                    return None
+                
+                self._print_with_timestamp(f"[red]✗ Xato:[/] {err_msg}")
+                if retry_count < config.getint("DEFAULT", "max_retries"):
+                    await asyncio.sleep(config.getint("DEFAULT", "retry_delay"))
                     return await self._generate_one(retry_count + 1)
                 return None
 
-            self._print_safe(f"[green] ✓✓[/] [green] Muvaffaqiyatli rezervatsiya qilindi:[/] {email}")
+            self._print_with_timestamp(f"[bold green]✓✓[/] [bold blue]Pochta zaxiralandi:[/] {email}")
             return email
             
         except Exception as e:
-            self._print_safe(f"[red] ✗ Generatsiya jarayonida xato:[/] {str(e)}")
-            
-            if retry_count < MAX_RETRIES:
-                logger.info(f"Qayta urinish ({retry_count + 1}/{MAX_RETRIES})")
-                await asyncio.sleep(RETRY_DELAY)
+            self._print_with_timestamp(f"[red]✗ Xato:[/] {str(e)}")
+            if retry_count < config.getint("DEFAULT", "max_retries"):
+                await asyncio.sleep(config.getint("DEFAULT", "retry_delay"))
                 return await self._generate_one(retry_count + 1)
             return None
 
@@ -127,73 +119,69 @@ class RichHideMyEmail(HideMyEmail):
             if email:
                 emails.append(email)
                 progress.update(task_id, advance=1)
-            await asyncio.sleep(TIME_BETWEEN_ACCOUNTS)
+            await asyncio.sleep(config.getint("DEFAULT", "time_between_accounts"))
         return emails
 
     async def _save_emails_to_file(self, emails: List[str]) -> bool:
         if not emails:
-            self._print_safe("[yellow][!] Hech qanday email saqlanmadi[/]")
+            self._print_with_timestamp("[yellow][!] Saqlanadigan email yo'q")
             return False
         
         try:
-            if os.path.exists(self._generated_emails_file):
-                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                backup_path = os.path.join(self._backup_dir, f"generated_emails_{timestamp}.bak")
-                os.rename(self._generated_emails_file, backup_path)
-                logger.info(f"Backup yaratildi: {backup_path}")
+            emails_file = Path(config.get("DEFAULT", "generated_emails_file"))
+            if emails_file.exists():
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_path = Path(config.get("DEFAULT", "backup_dir")) / f"generated_emails_{timestamp}.bak"
+                emails_file.rename(backup_path)
 
-            with open(self._generated_emails_file, "w", encoding="utf-8") as f:
+            with open(emails_file, "w", encoding="utf-8") as f:
                 f.write("\n".join(emails))
             
-            logger.info(f"{len(emails)} ta email saqlandi: {self._generated_emails_file}")
-            self._print_safe(
-                f'[green] ✓[/] [bold]Muvaffaqiyatli![/] {len(emails)} ta email '
-                f'"{self._generated_emails_file}" fayliga saqlandi'
-            )
+            self._print_with_timestamp(f'[green]✓[/] {len(emails)} ta email saqlandi')
             return True
-            
         except Exception as e:
-            self._print_safe(f'[red] ✗ Faylga yozishda xato: {str(e)}[/]')
+            self._print_with_timestamp(f'[red]✗ Xato:[/] {str(e)}')
             return False
 
-    async def generate_with_schedule(
-        self, 
-        total_count: int, 
-        batch_size: int, 
-        delay: float, 
-        max_retries: int
-    ) -> List[str]:
-        global MAX_RETRIES
-        MAX_RETRIES = max_retries
-        
+    async def generate_with_schedule(self, total_count: int, batch_size: int) -> List[str]:
         emails = []
         remaining = total_count
         
         with Progress(
             "[progress.description]{task.description}",
-            MoscowTimeColumn(),
             transient=False
         ) as progress:
-            task = progress.add_task("[cyan]Generatsiya qilinmoqda...", total=total_count)
+            task = progress.add_task("[bold cyan]", total=total_count)
             
             while remaining > 0:
                 current_batch = min(batch_size, remaining)
-                logger.info(f"Partiya ishlayapti: {current_batch} ta email (qolgan: {remaining})")
-                self._print_safe(f"\n[bold]Partiya:[/] {current_batch} ta email generatsiya qilinmoqda...")
+                self._print_with_timestamp(f"[bold]Jarayonda:[/] {current_batch} ta email")
                 
                 batch = await self._generate_batch(current_batch, progress, task)
                 emails.extend(batch)
                 remaining -= len(batch)
+
+                progress.update(task, completed=total_count - remaining)
                 
                 if remaining > 0:
-                    logger.info(f"Keyingi partiyadan oldin {delay} soat kutish...")
-                    self._print_safe(f"\n[bold yellow]Kutish:[/] Keyingi partiyadan oldin {delay} soat kutish...")
-                    await asyncio.sleep(delay * 3600)
+                    delay = config.getint("DEFAULT", "delay_hours")
+                    delay_seconds = delay * 3600
+                    while delay_seconds > 0:
+                        hours, minutes, seconds = self.time_helper.format_seconds(delay_seconds)
+                        progress.update(
+                            task,
+                            description=(
+                                f"[bold cyan] [Kutish vaqti qoldi [/]"
+                                f"[bold white]{hours:02d}:{minutes:02d}:{seconds:02d}[/] [bold cyan]... ][/]"
+                            )
+                        )
+                        await asyncio.sleep(1)
+                        delay_seconds -= 1
 
         if emails:
             await self._save_emails_to_file(emails)
         else:
-            self._print_safe("\n[bold yellow]Ogohlantirish:[/] Hech qanday email generatsiya qilinmadi")
+            self._print_with_timestamp("\n[yellow]Ogohlantirish:[/] Email generatsiya qilinmadi")
 
         return emails
 
@@ -204,47 +192,37 @@ class RichHideMyEmail(HideMyEmail):
         save_to_file: bool = False
     ) -> List[Dict[str, Any]]:
         try:
-            logger.info(f"Email ro'yxati ko'rsatilmoqda: active={active}, search={search}")
+            self._print_with_timestamp("[bold cyan]Email ro'yxati yuklanmoqda...[/]")
             
             gen_res = await self.list_email()
             if not gen_res:
-                self._print_safe("[red] ✗ Serverdan javob kelmadi[/]")
+                self._print_with_timestamp("[red]✗ Server javob bermadi[/]")
                 return []
 
             if "success" not in gen_res or not gen_res["success"]:
                 error = gen_res.get("error", {})
-                err_msg = error.get("errorMessage", gen_res.get("reason", "Noma'lum xato"))
-                self._print_safe(f"[red] ✗ Email ro'yxatini olish muvaffaqiyatsiz: {err_msg}[/]")
+                err_msg = error.get("errorMessage", "Noma'lum xato")
+                self._print_with_timestamp(f"[red]✗ Xato:[/] {err_msg}")
                 return []
 
             table = Table(title="Yashirin Email Manzillari", show_header=True, header_style="bold magenta")
-            table.add_column("No.", style="cyan")
+            table.add_column("№", style="cyan")
             table.add_column("Yorliq", style="magenta")
-            table.add_column("Email", style="green")
+            table.add_column("Pochta", style="green")
             table.add_column("Yaratilgan sana", style="blue")
-            table.add_column("Holat", style="red")
+            table.add_column("Holat", style="white")
 
             emails_data = []
             for idx, row in enumerate(gen_res["result"]["hmeEmails"], 1):
                 if active is None or row["isActive"] == active:
                     label = row.get("label", "N/A")
-                    
                     if search and not re.search(search, label, re.IGNORECASE):
                         continue
                         
-                    created = datetime.datetime.fromtimestamp(
-                        row["createTimestamp"] / 1000
-                    ).strftime("%Y-%m-%d %H:%M:%S")
-                    status = "Faol" if row["isActive"] else "Nofaol"
+                    created = self.time_helper.timestamp_to_str(row["createTimestamp"])
+                    status = "✅ Faol" if row["isActive"] else "❌ No faol"
                     
-                    table.add_row(
-                        str(idx),
-                        label,
-                        row["hme"],
-                        created,
-                        "✅" if row["isActive"] else "❌",
-                    )
-                    
+                    table.add_row(str(idx), label, row["hme"], created, status)
                     emails_data.append({
                         "number": idx,
                         "label": label,
@@ -253,35 +231,33 @@ class RichHideMyEmail(HideMyEmail):
                         "status": status
                     })
 
-            self._print_safe(table)
-            logger.info(f"{len(emails_data)} ta email ko'rsatildi")
+            self._print_with_timestamp(table)
+            self._print_with_timestamp(f"[green]✓[/] {len(emails_data)} ta email")
 
             if save_to_file and emails_data:
-                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = f"existing_emails_{timestamp}.csv"
                 try:
                     with open(filename, "w", encoding="utf-8") as f:
-                        f.write("No.,Yorliq,Email,Yaratilgan sana,Holat\n")
+                        f.write("№,Yorliq,Email,Yaratilgan sana,Holat\n")
                         for item in emails_data:
                             f.write(f"{item['number']},{item['label']},{item['email']},{item['created']},{item['status']}\n")
-                    
-                    logger.info(f"Email ro'yxati faylga saqlandi: {filename}")
-                    self._print_safe(
-                        f'[green] ✓[/] [bold]Muvaffaqiyatli![/] {len(emails_data)} ta email '
-                        f'"{filename}" fayliga saqlandi'
-                    )
+                    self._print_with_timestamp(f'[green]✓ {filename} fayliga saqlandi')
                 except Exception as e:
-                    self._print_safe(f"[red] ✗ Faylga saqlashda xato: {str(e)}[/]")
+                    self._print_with_timestamp(f"[red]✗ Xato:[/] {str(e)}")
 
             return emails_data
 
         except Exception as e:
-            self._print_safe(f"[red] ✗ Email ro'yxatini ko'rsatishda xato: {str(e)}[/]")
+            self._print_with_timestamp(f"[red]✗ Xato:[/] {str(e)}")
             return []
 
 async def main():
     console = Console()
-    console.rule("[bold blue]iCloud Yashirin Email Menedjeri[/]")
+    
+    title = "ICLOUD POCHTA YARATISH MENEDJERI"
+    full_line = f"================{title}================"
+    console.print(f"[bold cyan]{full_line}[/]")
     
     async with RichHideMyEmail() as hme:
         while True:
@@ -293,47 +269,26 @@ async def main():
             choice = IntPrompt.ask("\nTanlovni kiriting", choices=["1", "2", "3"], default=3)
             
             if choice == 1:
-                console.print("\n[bold]Email generatsiya parametrlari:[/]")
-                total = IntPrompt.ask(
-                    "Generatsiya qilinadigan email soni?",
-                    default=750,
-                    show_default=True
-                )
-                batch = IntPrompt.ask(
-                    "Har bir partiyadagi email soni?",
-                    default=MAX_CONCURRENT_TASKS,
-                    show_default=True
-                )
-                delay = IntPrompt.ask(
-                    "Partiyalar orasidagi vaqt (soat)?",
-                    default=DELAY_HOURS,
-                    show_default=True
-                )
-                max_retries = IntPrompt.ask(
-                    "Maksimal qayta urinishlar soni?",
-                    default=MAX_RETRIES,
-                    show_default=True
-                )
-                
-                await hme.generate_with_schedule(total, batch, delay, max_retries)
+                console.print("\n[bold]Generatsiya parametrlarini tanlang:[/]")
+                total = IntPrompt.ask("Generatsiya qilinadigan pochtalar soni", default=750)
+                batch = IntPrompt.ask("Har bir partiyadagi pochtalar soni", default=5)
+                await hme.generate_with_schedule(total, batch)
                 
             elif choice == 2:
                 console.print("\n[bold]Ro'yxat parametrlari:[/]")
                 active = Confirm.ask("Faol emaillarni ko'rsatish?", default=True)
                 search = input("Qidiruv uchun kalit so'z (barchasi uchun bo'sh qoldiring): ").strip() or None
                 save = Confirm.ask("CSV fayliga saqlash?", default=False)
-                
                 await hme.list_emails(active, search, save)
                 
             elif choice == 3:
                 console.print("\n[bold green]Dastur tugatildi![/]")
                 break
 
-
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\n[red]Dastur foydalanuvchi tomonidan to'xtatildi[/]")
+        print("\n[red]Dastur to'xtatildi[/]")
     except Exception as e:
-        print(f"\n[red] ✗ Kritik xato: {str(e)}[/]")
+        print(f"\n[red]✗ Xato:[/] {str(e)}")
