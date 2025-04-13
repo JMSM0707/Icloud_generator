@@ -39,14 +39,6 @@ if not exist venv\Lib\site-packages\installed (
     echo Kutubxonalar allaqachon o'rnatilgan, o'rnatish o'tkazib yuboriladi.
 )
 
-:: .env fayli mavjudligini tekshirish, agar yo'q bo'lsa .env-example dan nusxa olish
-if not exist .env (
-    echo Konfiguratsiya fayli nusxalanmoqda...
-    copy .env-example .env
-) else (
-    echo .env faylini nusxalash o'tkazib yuboriladi.
-)
-
 :: Botni ishga tushirish va qayta ishga tushirish tsikli
 :loop
 echo Bot ishga tushirilmoqda...
