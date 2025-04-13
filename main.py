@@ -30,9 +30,14 @@ class RichHideMyEmail(HideMyEmail):
 
     def _print_with_timestamp(self, *args, **kwargs):
         """Vaqt logosi bilan chiqarish"""
-        timestamp = f"[  {self._get_current_time()}  ] [bold white]|[/]"
+        timestamp = f"[bold cyan][  {self._get_current_time()}  ][/] [bold white]|[/]"
         with self.print_lock:
-            self.console.print(f"[bold cyan]{timestamp}[/]", *args, **kwargs)
+            self.console.print(timestamp, *args, **kwargs)
+
+    def _print_progress(self, *args, **kwargs):
+        """Progress bar uchun alohida chiqarish"""
+        with self.print_lock:
+            self.console.print(*args, **kwargs)
 
     def _setup_directories(self):
         try:
@@ -148,9 +153,11 @@ class RichHideMyEmail(HideMyEmail):
         remaining = total_count
         
         with Progress(
+            BarColumn(),
             "[progress.description]{task.description}",
             "[progress.percentage]",
-            transient=False
+            console=self.console,
+            transient=True
         ) as progress:
             task = progress.add_task("[cyan]============Yuklanmoqda============", total=total_count)
             
@@ -171,10 +178,7 @@ class RichHideMyEmail(HideMyEmail):
                         hours, minutes, seconds = self.time_helper.format_seconds(delay_seconds)
                         progress.update(
                             task,
-                            description=(
-                                f"[bold cyan] [Kutish vaqti qoldi [/]"
-                                f"[bold white]{hours:02d}:{minutes:02d}:{seconds:02d}[/] [bold cyan]... ][/]"
-                            )
+                            description=f"[bold cyan][Keyingi partiya uchun kutish:[/] [bold white]{hours:02d}:{minutes:02d}:{seconds:02d}[/] [bold cyan]... ][/]"
                         )
                         await asyncio.sleep(1)
                         delay_seconds -= 1
