@@ -2,7 +2,12 @@
 venv/
 build/
 dist/
-emails.txt
-cookie.txt
-**/.DS_Store
 *.spec
+*.csv
+*.bak
+*.log
+config.ini
+cookie.txt
+emails.txt
+backups/
+.DS_Store
