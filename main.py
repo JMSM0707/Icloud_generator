@@ -153,7 +153,6 @@ class RichHideMyEmail(HideMyEmail):
         remaining = total_count
         
         with Progress(
-            BarColumn(),
             "[progress.description]{task.description}",
             "[progress.percentage]",
             console=self.console,
